@@ -28,13 +28,24 @@ class Command(BaseCommand):
             action='store_true',
             help='Do not push any message on console'
         )
+        parser.add_argument(
+            '--run_class_list_name',
+            nargs='?',
+            help='Runs all the crons in the specified class list from settings. This is to override CRON_CLASSES hardcoding'
+        )
 
     def handle(self, *args, **options):
         """
         Iterates over all the CRON_CLASSES (or if passed in as a commandline argument)
         and runs them.
         """
+        
         cron_classes = options['cron_classes']
+        
+        if options['run_class_list_name']:            
+            list_name = options['run_class_list_name']
+            cron_classes = getattr(settings, list_name, [])
+            
         if cron_classes:
             cron_class_names = cron_classes
         else:
