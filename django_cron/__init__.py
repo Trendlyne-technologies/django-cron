@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 import traceback
 import time
 from subprocess import check_output
@@ -48,18 +48,18 @@ def get_current_time(tz = None):
 
 
 class Schedule(object):
-    def __init__(self, run_every_mins=None, run_at_times=None, retry_after_failure_mins=None, run_on_days=None, run_at_intervals=None, tz=None):
+    def __init__(self, run_every_mins=None, run_at_times=None, retry_after_failure_mins=None, run_on_days=None, run_between_times=None, tz=None):
         if run_at_times is None:
             run_at_times = []
-            # run_at_intervals [("10:45","12:00"),("15:30","17:30"),....("16:00","19:45")]
-        if run_at_intervals is None:
-            run_at_intervals = []
+            # run_between_times [("10:45","12:00"),("15:30","17:30"),....("16:00","19:45")]
+        if run_between_times is None:
+            run_between_times = []
         self.run_every_mins = run_every_mins
         self.run_at_times = run_at_times
         self.retry_after_failure_mins = retry_after_failure_mins
         self.run_on_days = run_on_days
         # self.run_monthly_on_days = run_monthly_on_days
-        self.run_at_intervals = run_at_intervals
+        self.run_between_times = run_between_times
         # tz = "Pacific/Johnston" if left none setting.tz will be used else utc timezone will be used
         self.tz = tz
 
@@ -145,7 +145,7 @@ class CronJobManager(object):
             return True
 
         if cron_job.schedule.run_on_days is not None:
-            if not datetime.today().weekday() in cron_job.schedule.run_on_days:
+            if not get_current_time(cron_job.schedule.tz).weekday() in cron_job.schedule.run_on_days:
                 return False
 
         if cron_job.schedule.retry_after_failure_mins:
@@ -155,14 +155,14 @@ class CronJobManager(object):
                 return False
 
         if cron_job.schedule.run_every_mins is not None:
-            # two cases to handle if run_at_intervals exist and normal flow of run_every_mins
+            # two cases to handle if run_between_times exist and normal flow of run_every_mins
             now = get_current_time(cron_job.schedule.tz)
             actual_time = time.strptime("%s:%s" % (now.hour, now.minute), "%H:%M")
             check = False
             interval = None
-            if cron_job.schedule.run_at_intervals:
-                # running loop over run_at_intervals to check if now exist in between any interval
-                for i in cron_job.schedule.run_at_intervals:
+            if cron_job.schedule.run_between_times:
+                # running loop over run_between_times to check if now exist in between any interval
+                for i in cron_job.schedule.run_between_times:
                     if actual_time >= time.strptime(i[0], "%H:%M") and actual_time <= time.strptime(i[1], "%H:%M"):
                         interval = i
                         check = True
