@@ -1,7 +1,7 @@
 from django.utils.timezone import now as utc_now, localtime, is_naive
 from django.utils.translation import gettext as _
 from django.template.defaultfilters import pluralize
-
+import pytz
 
 def humanize_duration(duration):
     """
@@ -47,6 +47,9 @@ def get_class(kls):
     return m
 
 
-def get_current_time():
+def get_current_time(tz=None):
+    ''' if tz exist use that as timezonne else normal flow '''
     now = utc_now()
+    if tz:
+        return now.astimezone(pytz.timezone(tz))
     return now if is_naive(now) else localtime(now)

@@ -31,15 +31,22 @@ class Schedule(object):
             run_weekly_on_days=None,
             run_monthly_on_days=None,
             run_tolerance_seconds=0,
+            run_between_times=None,
+            tz=None
     ):
         if run_at_times is None:
             run_at_times = []
+        if run_between_times is None:
+            run_between_times = []
         self.run_every_mins = run_every_mins
         self.run_at_times = run_at_times
         self.retry_after_failure_mins = retry_after_failure_mins
         self.run_weekly_on_days = run_weekly_on_days
         self.run_monthly_on_days = run_monthly_on_days
         self.run_tolerance_seconds = run_tolerance_seconds
+        self.run_between_times = run_between_times
+        # tz = "Pacific/Johnston" if left none setting.tz will be used else utc timezone will be used
+        self.tz = tz
 
 
 class CronJobBase(object):
@@ -132,11 +139,11 @@ class CronJobManager(object):
             return True
 
         if cron_job.schedule.run_monthly_on_days is not None:
-            if not get_current_time().day in cron_job.schedule.run_monthly_on_days:
+            if not get_current_time(cron_job.schedule.tz).day in cron_job.schedule.run_monthly_on_days:
                 return False
 
         if cron_job.schedule.run_weekly_on_days is not None:
-            if not get_current_time().weekday() in cron_job.schedule.run_weekly_on_days:
+            if not get_current_time(cron_job.schedule.tz).weekday() in cron_job.schedule.run_weekly_on_days:
                 return False
 
         if cron_job.schedule.retry_after_failure_mins:
@@ -150,26 +157,46 @@ class CronJobManager(object):
             if (
                     last_job
                     and not last_job.is_success
-                    and get_current_time() + timedelta(seconds=cron_job.schedule.run_tolerance_seconds)
+                    and get_current_time(cron_job.schedule.tz) + timedelta(seconds=cron_job.schedule.run_tolerance_seconds)
                     <= last_job.start_time
                     + timedelta(minutes=cron_job.schedule.retry_after_failure_mins)
             ):
                 return False
 
         if cron_job.schedule.run_every_mins is not None:
+            # two cases to handle if run_between_times exist and normal flow of run_every_mins
+            now = get_current_time(cron_job.schedule.tz)
+            actual_time = time.strptime("%s:%s" % (now.hour, now.minute), "%H:%M")
+            check = False
+            interval = None
+            if cron_job.schedule.run_between_times:
+                # running loop over run_between_times to check if now exist in between any interval
+                for i in cron_job.schedule.run_between_times:
+                    if actual_time >= time.strptime(i[0], "%H:%M") and actual_time <= time.strptime(i[1], "%H:%M"):
+                        interval = i
+                        check = True
+            else:
+                check = True
+            # check is False cron will not run
+            if not check:
+                return False
             try:
                 self.previously_ran_successful_cron = CronJobLog.objects.filter(
-                    code=cron_job.get_code(), is_success=True
-                ).exclude(start_time__gt=get_current_time()).latest('start_time')
+                    code=cron_job.get_code(),
+                    is_success=True,
+                    ran_at_time__isnull=True
+                ).latest('start_time')
             except CronJobLog.DoesNotExist:
                 pass
 
             if self.previously_ran_successful_cron:
-                if (
-                        get_current_time() + timedelta(seconds=cron_job.schedule.run_tolerance_seconds)
-                        > self.previously_ran_successful_cron.start_time
-                        + timedelta(minutes=cron_job.schedule.run_every_mins)
-                ):
+                start_time = self.previously_ran_successful_cron.start_time
+                # there is breakage in between intervals ,so to run it in interval replacing start time with now
+                if interval and actual_time == time.strptime(interval[0], "%H:%M") and now.replace(second=0,microsecond=0) != start_time.replace(second=0,microsecond=0):
+                    start_time = now
+                else:
+                    start_time += timedelta(minutes=cron_job.schedule.run_every_mins)
+                if get_current_time(cron_job.schedule.tz) > start_time :
                     return True
             else:
                 return True
@@ -177,7 +204,7 @@ class CronJobManager(object):
         if cron_job.schedule.run_at_times:
             for time_data in cron_job.schedule.run_at_times:
                 user_time = time.strptime(time_data, "%H:%M")
-                now = get_current_time()
+                now = get_current_time(cron_job.schedule.tz)
                 actual_time = time.strptime("%s:%s" % (now.hour, now.minute), "%H:%M")
                 if actual_time >= user_time:
                     qset = CronJobLog.objects.filter(
@@ -205,7 +232,7 @@ class CronJobManager(object):
         cron_log.is_success = kwargs.get('success', True)
         cron_log.message = self.make_log_msg(messages)
         cron_log.ran_at_time = getattr(self, 'user_time', None)
-        cron_log.end_time = get_current_time()
+        cron_log.end_time = get_current_time(cron_job.schedule.tz)
         cron_log.save()
 
         if not cron_log.is_success and self.write_log:
@@ -252,9 +279,10 @@ class CronJobManager(object):
         return full_message
 
     def __enter__(self):
+        cron_job = getattr(self, 'cron_job', self.cron_job_class)
         from django_cron.models import CronJobLog
 
-        self.cron_log = CronJobLog(start_time=get_current_time())
+        self.cron_log = CronJobLog(start_time=get_current_time(cron_job.schedule.tz))
 
         return self
 
