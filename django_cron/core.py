@@ -3,6 +3,7 @@ from datetime import timedelta
 import traceback
 import time
 import sys
+import pytz
 
 from django.conf import settings
 from django.utils.timezone import now as utc_now
@@ -46,6 +47,8 @@ class Schedule(object):
         self.run_tolerance_seconds = run_tolerance_seconds
         self.run_between_times = run_between_times
         # tz = "Pacific/Johnston" if left none setting.tz will be used else utc timezone will be used
+        if tz is None:
+            tz = "Asia/Kolkata"
         self.tz = tz
 
 
@@ -190,7 +193,7 @@ class CronJobManager(object):
                 pass
 
             if self.previously_ran_successful_cron:
-                start_time = self.previously_ran_successful_cron.start_time
+                start_time = self.previously_ran_successful_cron.start_time.astimezone(pytz.timezone(cron_job.schedule.tz))
                 # there is breakage in between intervals ,so to run it in interval replacing start time with now
                 if interval and actual_time == time.strptime(interval[0], "%H:%M") and now.replace(second=0,microsecond=0) != start_time.replace(second=0,microsecond=0):
                     start_time = now
