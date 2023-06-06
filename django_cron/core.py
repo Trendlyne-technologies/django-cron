@@ -154,14 +154,14 @@ class CronJobManager(object):
             last_job = (
                 CronJobLog.objects.filter(code=cron_job.get_code())
                     .order_by('-start_time')
-                    .exclude(start_time__gt=get_current_time())
+                    .exclude(start_time__gt=get_current_time(cron_job.schedule.tz))
                     .first()
             )
             if (
                     last_job
                     and not last_job.is_success
                     and get_current_time(cron_job.schedule.tz) + timedelta(seconds=cron_job.schedule.run_tolerance_seconds)
-                    <= last_job.start_time
+                    <= last_job.start_time.astimezone(pytz.timezone(cron_job.schedule.tz))
                     + timedelta(minutes=cron_job.schedule.retry_after_failure_mins)
             ):
                 return False
