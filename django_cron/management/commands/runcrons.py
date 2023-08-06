@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.db import close_old_connections
-from django_common.helper import send_mail
+from django.core.mail import send_mail
 
 from django_cron import CronJobManager, get_class, get_current_time
 from django_cron.models import CronJobLog

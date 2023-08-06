@@ -11,7 +11,7 @@ from django.db.models import Q
 from subprocess import check_output
 from django_cron.helpers import get_class, get_current_time
 
-from django_common.helper import send_mail
+from django.core.mail import send_mail
 
 
 DEFAULT_LOCK_BACKEND = 'django_cron.backends.lock.cache.CacheLock'
