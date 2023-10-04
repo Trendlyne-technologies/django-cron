@@ -39,6 +39,7 @@ class CronJobLog(models.Model):
 class CronJobLock(models.Model):
     job_name = models.CharField(max_length=200, unique=True)
     locked = models.BooleanField(default=False)
+    modified = models.DateTimeField(null=True, auto_now=True)
 
     def __str__(self):
         return '%s (%s)' % (self.job_name, self.locked)
