@@ -12,6 +12,8 @@ from subprocess import check_output
 from django_cron.helpers import get_class, get_current_time
 
 from django.core.mail import send_mail
+import os
+import psutil
 
 
 DEFAULT_LOCK_BACKEND = 'django_cron.backends.lock.cache.CacheLock'
@@ -346,7 +348,7 @@ class CronJobManager(object):
                         cron_job_class.__name__,
                         self.cron_job.get_code(),
                     )
-                    self.make_log('Job in progress', success=True)
+                    self.make_log(f'Job in progress {os.getpid()}', success=True)
                     self.msg = self.cron_job.do()
                     self.make_log(self.msg, success=True)
                     self.cron_job.set_prev_success_cron(
@@ -375,6 +377,16 @@ class CronJobManager(object):
     def msg(self, msg):
         if msg is None:
             msg = ''
+        
+        try:
+            pid = os.getpid()
+            process = psutil.Process(pid)
+            memory_usage = process.memory_info().rss
+            memory_usage_mb = memory_usage / (1024 * 1024)
+            msg = "PID: {}, Memory MB: {} \n\n {}".format(os.getpid(), memory_usage_mb, msg)
+        except Exception as e:
+            pass
+        
         self._msg = msg
 
     def _remove_old_success_job_logs(self, job_class):
