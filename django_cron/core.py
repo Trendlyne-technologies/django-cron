@@ -258,14 +258,23 @@ class CronJobManager(object):
                 last_min_cron_status = list(CronJobLog.objects.using("default").filter(
                         code=cron_log.code).order_by("-end_time").values_list("is_success", flat=True)[:min_failures])
 
+                try:
+                    # get the ip address
+                    ip_addr = check_output(['/usr/bin/ec2metadata', '--public-ipv4']).decode('utf-8')
+                    ip_addr_str = str(ip_addr)
+                except:
+                    # cron may be run on the local so in that case /usr/bin/ec2metadata path not there so need to handal
+                    ip_addr_str = ""
+
                 #All of them should be failed ie false. Then only we have to send email
                 # Send on 3 failures. [True, False, False] ie [success, failed, failed] does not trigger email
                 if not any(last_min_cron_status):
                     send_mail(
-                        '%s%s failed %s times in a row!' % (
+                        '%s%s failed %s times in a row! server : %s' % (
                             failed_runs_cronjob_email_prefix,
                             cron_log.code,
                             min_failures,
+                            ip_addr_str,
                         ),
                         cron_log.message,
                         settings.DEFAULT_FROM_EMAIL, emails

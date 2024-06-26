@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.db import close_old_connections
 from django.core.mail import send_mail
+from subprocess import check_output
 
 from django_cron import CronJobManager, get_class, get_current_time
 from django_cron.models import CronJobLog
@@ -54,6 +55,14 @@ class Command(BaseCommand):
             cron_class_names = getattr(settings, 'CRON_CLASSES', [])
 
         try:
+            # get the ip address
+            ip_addr = check_output(['/usr/bin/ec2metadata', '--public-ipv4']).decode('utf-8')
+            ip_addr_str = str(ip_addr)
+        except:
+            # cron may be run on the local so in that case /usr/bin/ec2metadata path not there so need to handal
+            ip_addr_str = ""
+
+        try:
             crons_to_run = [get_class(x) for x in cron_class_names]
         except ImportError:
             # Send an email to admin when the module load fails
@@ -63,7 +72,7 @@ class Command(BaseCommand):
                 emails = [admin[1] for admin in settings.ADMINS]
                 failed_runs_cronjob_email_prefix = getattr(settings, 'FAILED_RUNS_CRONJOB_EMAIL_PREFIX', '')
                 send_mail(
-                    "URGENT!!! {} Error while importing crons".format(failed_runs_cronjob_email_prefix),
+                    "URGENT!!! {} Error while importing crons on server : {}".format(failed_runs_cronjob_email_prefix, ip_addr_str),
                     error,
                     settings.DEFAULT_FROM_EMAIL, emails
                 )
