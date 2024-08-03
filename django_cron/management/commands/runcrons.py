@@ -57,7 +57,7 @@ class Command(BaseCommand):
         try:
             # get the ip address
             ip_addr = check_output(['/usr/bin/ec2metadata', '--public-ipv4']).decode('utf-8')
-            ip_addr_str = str(ip_addr)
+            ip_addr_str = str(ip_addr).replace("\n", "")
         except:
             # cron may be run on the local so in that case /usr/bin/ec2metadata path not there so need to handal
             ip_addr_str = ""
