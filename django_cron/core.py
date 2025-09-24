@@ -215,12 +215,14 @@ class CronJobManager(object):
                     qset = CronJobLog.objects.filter(
                         code=cron_job.get_code(), ran_at_time=time_data, is_success=True
                     ).filter(
-                        Q(start_time__gt=now)
-                        | Q(
-                            end_time__gte=now.replace(
-                                hour=0, minute=0, second=0, microsecond=0
-                            )
-                        )
+                        Q(start_time__gte=now.replace(hour=0, minute=0, second=0, microsecond=0))
+                        # fixing the logic , for reference go to
+                        # https://gl.trendlyne.com/trendlyne/finpulse/-/issues/10366
+                        # | Q(
+                        #     end_time__gte=now.replace(
+                        #         hour=0, minute=0, second=0, microsecond=0
+                        #     )
+                        # )
                     )
                     if not qset:
                         self.user_time = time_data
